@@ -1,6 +1,8 @@
-use ashmaize::{hash, Rom, RomGenerationType};
+use ashmaize::{Rom, RomGenerationType, hash};
 use clap::Parser;
 use hex;
+
+mod tests;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -81,7 +83,7 @@ fn main() {
         let hash_result = hash(&preimage.as_bytes(), &rom, 8, 256);
 
         if hash_structure_good(&hash_result, leading_zeros_required as usize) {
-            println!("{}", nonce);
+            println!("{:016x}", nonce);
             break;
         }
 
