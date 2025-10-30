@@ -67,29 +67,46 @@ If you are participating with multiple addresses, you can consolidate the reward
 
 ### Implementing a Command-Line Tool
 
-A command-line tool to automate this process would need to perform the following actions:
+A command-line tool to automate this process can be structured with a clear separation between orchestration and computation, and between challenge fetching and solving. This allows for flexibility and efficiency. The user is assumed to have already registered their addresses.
 
-1.  **Configuration:**
-    *   Accept a list of Cardano addresses and a secure way to access their corresponding private/signing keys.
-    *   Store the API base URL.
+**1. Architecture Overview**
 
-2.  **Registration Command:**
-    *   Implement a command (`register`) that takes an address, fetches the T&C, prompts for signing (or does it automatically if keys are provided), and submits the registration to the server.
+*   **Orchestrator (Python):** A Python-based CLI application that manages the overall workflow. It handles configuration, calls the API, manages a database of challenges, and orchestrates the solving process. Python is ideal for its flexibility and rich ecosystem for CLI development and HTTP requests.
+*   **Compute/Solver (Rust):** A small, dedicated Rust executable that performs the computationally expensive AshMaize hashing. It will be called by the Python orchestrator. This leverages the performance of Rust and the existing `ashmaize` crate.
 
-3.  **Mining Command (`mine`):**
-    *   This is the main component. It should be a long-running process.
-    *   **Parallel Execution:** The tool should spawn a separate worker/thread for each registered address provided in the configuration.
-    *   **Worker Logic:** Each worker would execute the following loop:
-        1.  **Get Challenge:** Fetch the current challenge from the API.
-        2.  **Check ROM:** Determine if the `no_pre_mine` value has changed since the last run. If so, regenerate the AshMaize ROM. This is a significant one-time cost per day.
-        3.  **Start Mining:** Begin the nonce-finding loop (construct preimage, hash, check difficulty). This loop should be optimized for performance. The core hashing logic should be implemented by leveraging the provided `ashmaize` Rust crate.
-        4.  **Submit Solution:** Upon finding a valid nonce, immediately send it to the solution endpoint.
-        5.  **Repeat:** After submitting (or if the challenge expires), the worker should wait for the next challenge to become available and repeat the process.
+**2. State Management**
 
-4.  **Donation Command:**
-    *   Implement a command (`donate`) that takes an original address, a destination address, and facilitates the signing and submission process for consolidating rewards.
+*   A local database (e.g., a JSON file or a simple SQLite database) will be used to store the state. For each address, it will keep track of fetched challenges that are yet to be solved.
 
-5.  **Core Hashing Module:**
-    *   The most critical part of the implementation is the AshMaize hashing. The provided Rust repository contains the `ashmaize` crate which implements this algorithm. Your tool should be built in Rust to directly and efficiently use this crate. The `ashmaize-web` crate provides a good example of how to interface with the core `ashmaize` library.
+**3. Logical Components & Workflow**
 
-By following this structure, you can create a powerful command-line tool to efficiently participate in the Scavenger Hunt with multiple addresses without relying on the web interface.
+The tool would have two main, distinct modes of operation, likely implemented as subcommands (e.g., `scavenger-cli fetch` and `scavenger-cli solve`).
+
+**A. Challenge Fetching (`fetch` command)**
+
+*   **Purpose:** To continuously gather challenges for all registered addresses.
+*   **Implementation:**
+    *   This command runs a lightweight, long-running process.
+    *   It reads the list of user-provided Cardano addresses from a configuration file.
+    *   On a regular interval (e.g., every hour), it iterates through each address and makes a `GET` request to the `/challenge` API endpoint.
+    *   If a new, unsolved challenge is found, it is added to the local challenge database, associated with the respective address.
+
+**B. Problem Solving (`solve` command)**
+
+*   **Purpose:** To solve the challenges that have been previously fetched. This is the compute-intensive part.
+*   **Implementation:**
+    *   This command is run manually by the user, for example, once or twice a day.
+    *   It reads the challenge database to find all unsolved challenges.
+    *   For each challenge, it invokes the Rust solver executable as a subprocess.
+    *   **Data Passing:** The Python orchestrator passes all the necessary preimage components (address, challenge_id, difficulty, etc.) to the Rust solver via command-line arguments or standard input.
+    *   **The Rust Solver:**
+        *   Initializes the AshMaize ROM based on the `no_pre_mine` value (caching it if it's the same as the last run).
+        *   Performs the proof-of-work by iterating through nonces until a solution is found.
+        *   Prints the successful `nonce` to standard output.
+    *   **Submission:** The Python orchestrator captures the `nonce` from the solver's output and makes a `POST` request to the `/solution/{address}/{challenge_id}/{nonce}` endpoint.
+    *   Upon successful submission, the challenge is marked as "solved" in the local database.
+
+This decoupled architecture provides several advantages:
+*   **Efficiency:** The heavy computation is done in a compiled, high-performance language (Rust). The challenge fetching is done by a lightweight script.
+*   **Flexibility:** The user can control when to run the resource-intensive solving process, without missing any challenges.
+*   **Simplicity:** The tool does not need to manage any private keys or signing operations, enhancing security and simplifying the design.
