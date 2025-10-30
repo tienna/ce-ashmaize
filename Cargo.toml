@@ -22,6 +22,7 @@ harness = false
 [workspace]
 resolver = "3"
 members = ["crates/ashmaize-web", "crates/ashmaize-webdemo"]
+exclude = ["cli_hunt/rust_solver"]
 
 [workspace.package]
 version = "0.1.0"
