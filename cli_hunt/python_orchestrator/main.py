@@ -30,9 +30,10 @@ def fetch_challenges(addresses):
     db = load_db()
     for address in addresses:
         try:
-            response = requests.get("http://localhost:8080/challenge") # Assuming API runs on localhost:8080
+            response = requests.get("https://sm.midnight.gd/api/challenge") # Assuming API runs on localhost:8080
             response.raise_for_status()
-            challenge = response.json()
+            challenge_response = response.json()
+            challenge = challenge_response['challenge']
             challenge['address'] = address
             challenge['solved'] = False
             # Check if challenge already exists for this address
@@ -66,7 +67,7 @@ def solve_challenges():
                 print(f"Found nonce: {nonce}")
 
                 # Submit solution
-                submit_url = f"http://localhost:8080/solution/{challenge['address']}/{challenge['challenge_id']}/{nonce}"
+                submit_url = f"https://sm.midnight.gd/api/solution/{challenge['address']}/{challenge['challenge_id']}/{nonce}"
                 submit_response = requests.post(submit_url)
                 submit_response.raise_for_status()
                 print(f"Solution submitted successfully for {challenge['challenge_id']}")
