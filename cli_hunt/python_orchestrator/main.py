@@ -4,7 +4,6 @@ import subprocess
 import os
 import argparse
 import threading
-import time
 import signal
 import sys
 from datetime import datetime, timezone
@@ -225,27 +224,63 @@ def solver_worker(db_manager, stop_event, interval):
                             command, capture_output=True, text=True, check=True
                         )
                         nonce = result.stdout.strip()
+                        solved_time = datetime.now(timezone.utc)
                         print(f"Found nonce: {nonce}")
 
                         submit_url = f"https://sm.midnight.gd/api/solution/{address}/{c['challengeId']}/{nonce}"
                         submit_response = requests.post(submit_url)
                         submit_response.raise_for_status()
+                        validated_time = datetime.now(timezone.utc)
                         print(f"Solution submitted successfully for {c['challengeId']}")
 
-                        update = {
-                            "status": "solved",
-                            "solvedAt": datetime.now(timezone.utc)
-                            .isoformat(timespec="milliseconds")
-                            .replace("+00:00", "Z"),
-                            "salt": nonce,
-                        }
                         try:
                             submission_data = submit_response.json()
-                            if "hash" in submission_data:
-                                update["hash"] = submission_data["hash"]
+                            crypto_receipt = submission_data.get("crypto_receipt")
+
+                            if crypto_receipt:
+                                update = {
+                                    "status": "validated",
+                                    "solvedAt": solved_time.isoformat(
+                                        timespec="milliseconds"
+                                    ).replace("+00:00", "Z"),
+                                    "submittedAt": solved_time.isoformat(
+                                        timespec="milliseconds"
+                                    ).replace("+00:00", "Z"),
+                                    "validatedAt": validated_time.isoformat(
+                                        timespec="milliseconds"
+                                    ).replace("+00:00", "Z"),
+                                    "salt": nonce,
+                                    "cryptoReceipt": crypto_receipt,
+                                }
+                                db_manager.update_challenge(
+                                    address, c["challengeId"], update
+                                )
+                                print(
+                                    f"Successfully validated challenge {c['challengeId']}"
+                                )
+                            else:
+                                print(
+                                    f"Submission for {c['challengeId']} OK but no crypto_receipt in response."
+                                )
+                                update = {
+                                    "status": "solved",
+                                    "solvedAt": solved_time.isoformat(
+                                        timespec="milliseconds"
+                                    ).replace("+00:00", "Z"),
+                                    "salt": nonce,
+                                }
+                                db_manager.update_challenge(
+                                    address, c["challengeId"], update
+                                )
+
                         except json.JSONDecodeError:
-                            pass
-                        db_manager.update_challenge(address, c["challengeId"], update)
+                            print(
+                                f"Failed to decode JSON from submission response for {c['challengeId']}."
+                            )
+                            update = {"status": "submission_error", "salt": nonce}
+                            db_manager.update_challenge(
+                                address, c["challengeId"], update
+                            )
 
                     except subprocess.CalledProcessError as e:
                         print(
