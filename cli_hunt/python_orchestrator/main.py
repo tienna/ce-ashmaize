@@ -3,6 +3,7 @@ import json
 import subprocess
 import time
 import os
+from datetime import datetime, timezone
 
 CONFIG_FILE = "config.json"
 DB_FILE = "challenges.json"
@@ -28,7 +29,7 @@ def save_db(db):
 
 def load_db():
     if not os.path.exists(DB_FILE):
-        return {"challenges": []}
+        return {}
     with open(DB_FILE, "r") as f:
         return json.load(f)
 
@@ -42,23 +43,35 @@ def fetch_challenges(addresses):
                 "https://sm.midnight.gd/api/challenge"
             )  # Assuming API runs on localhost:8080
             response.raise_for_status()
-            challenge_response = response.json()
-            challenge = challenge_response["challenge"]
-            challenge["address"] = address
-            challenge["solved"] = False
+            challenge_data = response.json()["challenge"]
+
+            new_challenge = {
+                "challengeId": challenge_data["challenge_id"],
+                "challengeNumber": challenge_data["challenge_number"],
+                "campaignDay": challenge_data["day"],
+                "difficulty": challenge_data["difficulty"],
+                "status": "available",
+                "noPreMine": challenge_data["no_pre_mine"],
+                "noPreMineHour": challenge_data["no_pre_mine_hour"],
+                "latestSubmission": challenge_data["latest_submission"],
+                "availableAt": challenge_data["issued_at"],
+            }
+
+            if address not in db:
+                db[address] = []
+
             # Check if challenge already exists for this address
             if not any(
-                c["challenge_id"] == challenge["challenge_id"]
-                and c["address"] == address
-                for c in db["challenges"]
+                c["challengeId"] == new_challenge["challengeId"] for c in db[address]
             ):
-                db["challenges"].append(challenge)
+                db[address].append(new_challenge)
+                db[address].sort(key=lambda c: c["challengeId"])
                 print(
-                    f"New challenge fetched for {address}: {challenge['challenge_id']}"
+                    f"New challenge fetched for {address}: {new_challenge['challengeId']}"
                 )
             else:
                 print(
-                    f"Challenge {challenge['challenge_id']} already exists for {address}"
+                    f"Challenge {new_challenge['challengeId']} already exists for {address}"
                 )
         except requests.exceptions.RequestException as e:
             print(f"Error fetching challenge for {address}: {e}")
@@ -68,47 +81,72 @@ def fetch_challenges(addresses):
 def solve_challenges():
     print("Solving challenges...")
     db = load_db()
-    for challenge in db["challenges"]:
-        if not challenge["solved"]:
-            print(
-                f"Attempting to solve challenge {challenge['challenge_id']} for {challenge['address']}"
-            )
-            try:
-                command = [
-                    RUST_SOLVER_PATH,
-                    "--address",
-                    challenge["address"],
-                    "--challenge-id",
-                    challenge["challenge_id"],
-                    "--difficulty",
-                    challenge["difficulty"],
-                    "--no-pre-mine",
-                    challenge["no_pre_mine"],
-                    "--latest-submission",
-                    challenge["latest_submission"],
-                    "--no-pre-mine-hour",
-                    challenge["no_pre_mine_hour"],
-                ]
-                result = subprocess.run(
-                    command, capture_output=True, text=True, check=True
+    now = datetime.now(timezone.utc)
+    for address, challenges in db.items():
+        for challenge in challenges:
+            if challenge["status"] == "available":
+                latest_submission = datetime.fromisoformat(
+                    challenge["latestSubmission"].replace("Z", "+00:00")
                 )
-                nonce = result.stdout.strip()
-                print(f"Found nonce: {nonce}")
+                if now > latest_submission:
+                    challenge["status"] = "expired"
+                    print(
+                        f"Challenge {challenge['challengeId']} for {address} has expired."
+                    )
+                    continue
 
-                # Submit solution
-                submit_url = f"https://sm.midnight.gd/api/solution/{challenge['address']}/{challenge['challenge_id']}/{nonce}"
-                submit_response = requests.post(submit_url, data={})
-                submit_response.raise_for_status()
                 print(
-                    f"Solution submitted successfully for {challenge['challenge_id']}"
+                    f"Attempting to solve challenge {challenge['challengeId']} for {address}"
                 )
-                challenge["solved"] = True
-            except subprocess.CalledProcessError as e:
-                print(f"Rust solver error: {e.stderr}")
-            except requests.exceptions.RequestException as e:
-                print(f"Error submitting solution: {e}")
-            except Exception as e:
-                print(f"An unexpected error occurred: {e}")
+                try:
+                    command = [
+                        RUST_SOLVER_PATH,
+                        "--address",
+                        address,
+                        "--challenge-id",
+                        challenge["challengeId"],
+                        "--difficulty",
+                        challenge["difficulty"],
+                        "--no-pre-mine",
+                        challenge["noPreMine"],
+                        "--latest-submission",
+                        challenge["latestSubmission"],
+                        "--no-pre-mine-hour",
+                        challenge["noPreMineHour"],
+                    ]
+                    result = subprocess.run(
+                        command, capture_output=True, text=True, check=True
+                    )
+                    nonce = result.stdout.strip()
+                    print(f"Found nonce: {nonce}")
+
+                    # Submit solution
+                    submit_url = f"https://sm.midnight.gd/api/solution/{address}/{challenge['challengeId']}/{nonce}"
+                    submit_response = requests.post(submit_url, data={})
+                    submit_response.raise_for_status()
+                    print(
+                        f"Solution submitted successfully for {challenge['challengeId']}"
+                    )
+                    challenge["status"] = "solved"
+                    challenge["solvedAt"] = (
+                        datetime.now(timezone.utc)
+                        .isoformat(timespec="milliseconds")
+                        .replace("+00:00", "Z")
+                    )
+                    challenge["salt"] = nonce
+                    try:
+                        submission_data = submit_response.json()
+                        if "hash" in submission_data:
+                            challenge["hash"] = submission_data["hash"]
+                    except json.JSONDecodeError:
+                        pass
+
+                except subprocess.CalledProcessError as e:
+                    print(f"Rust solver error: {e.stderr}")
+                except requests.exceptions.RequestException as e:
+                    print(f"Error submitting solution: {e}")
+                except Exception as e:
+                    print(f"An unexpected error occurred: {e}")
     save_db(db)
 
 
