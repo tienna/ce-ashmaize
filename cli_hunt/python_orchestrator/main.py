@@ -39,9 +39,7 @@ def fetch_challenges(addresses):
     db = load_db()
     for address in addresses:
         try:
-            response = requests.get(
-                "https://sm.midnight.gd/api/challenge"
-            )  # Assuming API runs on localhost:8080
+            response = requests.get("https://sm.midnight.gd/api/challenge")
             response.raise_for_status()
             challenge_data = response.json()["challenge"]
 
