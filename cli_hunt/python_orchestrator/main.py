@@ -190,7 +190,7 @@ def fetcher_worker(db_manager, stop_event, tui_app):
 
                 added = False
                 for address in addresses:
-                    if db_manager.add_challenge(address, new_challenge):
+                    if db_manager.add_challenge(address, deepcopy(new_challenge)):
                         tui_app.post_message(
                             LogMessage(
                                 f"New challenge {new_challenge['challengeId']} added for {address[:10]}..."
