@@ -1,14 +1,16 @@
 # Midnight Scavenger CLI Miner
 
-This project provides a command-line interface (CLI) tool for managing and automating the Midnight Scavenger mining process, offering an alternative to the official web application. While initial registration and potentially solving the first challenge for an address still require the web interface, this tool streamlines the continuous process of requesting, solving, and submitting new challenges.
+This project provides a command-line interface (CLI) tool for managing and automating the Midnight Scavenger mining process, offering an alternative to the official web application.
 
-The tool is designed to manage multiple mining addresses and keep track of their challenge progress locally.
+Wallet creation and scavenger hunt registration are NOT handled and still require you to use the web interface, for obvious non-gaming reasons.
+This tool only streamlines the continuous process of requesting, solving, and submitting new challenges, in an alternative way to the browser.
+The tool can manage multiple mining addresses and keep track of their challenge progress locally.
 
 <img width="2712" height="1904" alt="image" src="https://github.com/user-attachments/assets/552ae061-46fa-4b62-9fd7-b18b136bb33a" />
 
 ## Features
 
-*   **Automated Challenge Management**: Automatically fetches new challenges and submits solutions.
+*   **Challenge Management**: Automatically fetches new challenges and submits solutions.
 *   **Local Data Storage**: All challenge data is stored locally in `challenges.json`, allowing for easy export and reuse with other tools.
 *   **Robust Data Handling**: Utilizes an append-only journal (`challenges.json.journal`) to prevent race conditions and ensure data integrity.
 *   **Efficient Solver**: Leverages a high-performance Rust binary for solving mining challenges.
