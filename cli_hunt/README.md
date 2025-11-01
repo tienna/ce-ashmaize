@@ -98,6 +98,25 @@ All persistent data for your mining addresses and their challenges are stored in
 *   `challenges.json`: The main database file containing the current state of all managed challenges.
 *   `challenges.json.journal`: An append-only journal file that records all operations. This journal is regularly consolidated into `challenges.json` and helps prevent data corruption due to race conditions or unexpected shutdowns.
 
+## Fixing Duplicated Challenges Issue
+
+If you cloned and run this between on the 31th of October or early 1st November, there was a bug due to duplicated instances of the challenge objects shared accross addresses.
+First, make sure you terminate the running miner.
+Then make sure you updated the code of this repository, with a git pull or simply recloning the repository (make sure to save your `challenges.json` file).
+Then I made a small script that will detect all duplicated solutions, and reset them to the "available" status.
+
+```sh
+# from inside the python_orchestrator/ folder:
+uv run reset_duplicates.py
+
+# then you can restart the miner
+uv run main.py run
+```
+
+This way, if they are still in the 24h window available to solve them, the solver will try again to solve these challenges.
+This way you won’t lose the latest 24h of challenges, which should be the majority of time spent with this bug.
+Remark that the TUI only shows the last 15 challenges, so it will start solving challenges that are not showed in the TUI at the beginning, then catch up with those displayed in the TUI.
+
 ## Contributing
 
 If you find things missing and want to contribute, simply create the code you need and push it on your own fork of this.
