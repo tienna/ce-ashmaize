@@ -30,6 +30,7 @@ You will need the following installed on your system:
 
 First, clone the project repository to your local machine, move into the directory and switch to the `piz` branch.
 This is a fork of the [original repository](https://github.com/input-output-hk/ce-ashmaize) from IOHK implementing the ashmaize mining function.
+Then move into the `cli_hunt` subfolder where I added this tool.
 
 ```bash
 git clone https://github.com/mpizenberg/ce-ashmaize.git
