@@ -18,9 +18,9 @@ LOG_FILE = "orchestrator.log"
 RUST_SOLVER_PATH = (
     "../rust_solver/target/release/ashmaize-solver"  # Assuming it's built
 )
-FETCH_INTERVAL = 15 * 60  # 15 minutes
-DEFAULT_SOLVE_INTERVAL = 30 * 60  # 30 minutes
-DEFAULT_SAVE_INTERVAL = 2 * 60  # 2 minutes
+FETCH_INTERVAL = 10 * 60  # 10 minutes
+DEFAULT_SOLVE_INTERVAL = 2 * 60  # 2 minutes
+DEFAULT_SAVE_INTERVAL = 10 * 60  # 10 minutes
 
 
 # --- Logging Setup ---
