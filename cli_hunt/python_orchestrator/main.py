@@ -21,6 +21,10 @@ RUST_SOLVER_PATH = (
 FETCH_INTERVAL = 10 * 60  # 10 minutes
 DEFAULT_SOLVE_INTERVAL = 2 * 60  # 2 minutes
 DEFAULT_SAVE_INTERVAL = 10 * 60  # 10 minutes
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36",
+    "Referer": "https://sm.midnight.gd/",
+}
 
 
 # --- Logging Setup ---
@@ -188,7 +192,9 @@ def fetcher_worker(db_manager, stop_event, tui_app):
             )
         else:
             try:
-                response = requests.get("https://sm.midnight.gd/api/challenge")
+                response = requests.get(
+                    "https://sm.midnight.gd/api/challenge", headers=HEADERS
+                )
                 response.raise_for_status()
                 challenge_data = response.json()["challenge"]
 
@@ -288,7 +294,7 @@ def _solve_one_challenge(db_manager, tui_app, stop_event, address, challenge):
         submit_url = (
             f"https://sm.midnight.gd/api/solution/{address}/{c['challengeId']}/{nonce}"
         )
-        submit_response = requests.post(submit_url)
+        submit_response = requests.post(submit_url, headers=HEADERS)
         submit_response.raise_for_status()
         validated_time = datetime.now(timezone.utc)
         tui_app.post_message(
