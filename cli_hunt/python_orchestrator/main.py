@@ -381,36 +381,20 @@ def solver_worker(db_manager, stop_event, solve_interval, tui_app, max_solvers):
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_solvers) as executor:
         # Store futures for active tasks
         active_futures = set()
-        last_logged_check_time = datetime.min.replace(
-            tzinfo=timezone.utc
-        )  # Initialize with timezone-aware datetime
-
         while not stop_event.is_set():
             now = datetime.now(timezone.utc)
-            if (now - last_logged_check_time) >= timedelta(seconds=solve_interval):
-                tui_app.post_message(LogMessage("Checking for challenges to solve..."))
-                last_logged_check_time = now
-
             # Clean up completed futures
             done_futures = {f for f in active_futures if f.done()}
             for f in done_futures:
                 active_futures.remove(f)
 
             available_slots = max_solvers - len(active_futures)
-            if available_slots <= 0:
-                if last_logged_check_time == now:
-                    tui_app.post_message(
-                        LogMessage(
-                            f"Solver pool full ({len(active_futures)}/{max_solvers}). Waiting for slots."
-                        )
-                    )
-
             challenges_dispatched_this_round = 0
             if available_slots > 0:
                 addresses = db_manager.get_addresses()
                 now = datetime.now(timezone.utc)
-                should_break_outer_loop = False
-
+                # Collect all available challenges from all addresses
+                all_available_challenges = []
                 for address in addresses:
                     challenges = db_manager.get_challenge_queue(address)
                     for c in challenges:
@@ -432,38 +416,37 @@ def solver_worker(db_manager, stop_event, solve_interval, tui_app, max_solvers):
                                         )
                                     )
                             else:
-                                if available_slots > 0:
-                                    # Claim the challenge by updating its status
-                                    # This update is protected by DatabaseManager's lock
-                                    updated_status = db_manager.update_challenge(
-                                        address, c["challengeId"], {"status": "solving"}
-                                    )
-                                    if updated_status:
-                                        tui_app.post_message(
-                                            ChallengeUpdate(
-                                                address,
-                                                c["challengeId"],
-                                                updated_status,
-                                            )
-                                        )
-                                        # Submit claimed challenge to the thread pool
-                                        future = executor.submit(
-                                            _solve_one_challenge,
-                                            db_manager,
-                                            tui_app,
-                                            stop_event,
-                                            address,
-                                            deepcopy(c),  # Pass a deepcopy
-                                        )
-                                        active_futures.add(future)
-                                        challenges_dispatched_this_round += 1
-                                        available_slots -= 1
-                                else:
-                                    # No more slots available in the current pass
-                                    should_break_outer_loop = True
-                                    break  # Exit inner challenge loop
-                    if should_break_outer_loop:
-                        break  # Exit outer address loop
+                                all_available_challenges.append((address, c))
+
+                # Sort challenges by challengeId to prioritize the oldest
+                all_available_challenges.sort(key=lambda x: x[1]["challengeId"])
+
+                for address, c in all_available_challenges:
+                    if available_slots > 0:
+                        # Claim the challenge by updating its status
+                        updated_status = db_manager.update_challenge(
+                            address, c["challengeId"], {"status": "solving"}
+                        )
+                        if updated_status:
+                            tui_app.post_message(
+                                ChallengeUpdate(
+                                    address,
+                                    c["challengeId"],
+                                    updated_status,
+                                )
+                            )
+                            # Submit claimed challenge to the thread pool
+                            future = executor.submit(
+                                _solve_one_challenge,
+                                db_manager,
+                                tui_app,
+                                stop_event,
+                                address,
+                                deepcopy(c),  # Pass a deepcopy
+                            )
+                            active_futures.add(future)
+                            challenges_dispatched_this_round += 1
+                            available_slots -= 1
 
                 if challenges_dispatched_this_round > 0:
                     tui_app.post_message(
