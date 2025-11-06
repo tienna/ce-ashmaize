@@ -370,8 +370,12 @@ def _solve_one_challenge(db_manager, tui_app, stop_event, address, challenge):
     except requests.exceptions.RequestException as e:  # ty: ignore
         msg = f"Error submitting solution for {c['challengeId']}: {e}"
         tui_app.post_message(LogMessage(msg))
-        db_manager.update_challenge(address, c["challengeId"], {"status": "available"})
-        tui_app.post_message(ChallengeUpdate(address, c["challengeId"], "available"))
+        db_manager.update_challenge(
+            address, c["challengeId"], {"status": "submission_error"}
+        )
+        tui_app.post_message(
+            ChallengeUpdate(address, c["challengeId"], "submission_error")
+        )
     except Exception as e:
         msg = f"An unexpected error occurred during solving: {e}"
         tui_app.post_message(LogMessage(msg))
