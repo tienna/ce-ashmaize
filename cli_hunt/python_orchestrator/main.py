@@ -197,7 +197,9 @@ def fetcher_worker(db_manager, stop_event, tui_app):
             )
         else:
             try:
-                response = session.get("https://sm.midnight.gd/api/challenge")
+                response = session.get(
+                    "https://scavenger.prod.gd.midnighttge.io/challenge"
+                )
                 response.raise_for_status()
                 challenge_data = response.json()["challenge"]
 
@@ -294,9 +296,7 @@ def _solve_one_challenge(db_manager, tui_app, stop_event, address, challenge):
         solved_time = datetime.now(timezone.utc)
         tui_app.post_message(LogMessage(f"Found nonce: {nonce} for {c['challengeId']}"))
 
-        submit_url = (
-            f"https://sm.midnight.gd/api/solution/{address}/{c['challengeId']}/{nonce}"
-        )
+        submit_url = f"https://scavenger.prod.gd.midnighttge.io/solution/{address}/{c['challengeId']}/{nonce}"
         submit_response = session.post(submit_url)
         submit_response.raise_for_status()
         validated_time = datetime.now(timezone.utc)
