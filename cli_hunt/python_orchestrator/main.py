@@ -173,7 +173,7 @@ class DatabaseManager:
         with self._lock:
             try:
                 with open(DB_FILE, "w") as f:
-                    json.dump(self._db, f, indent=4)
+                    json.dump(self._db, f, indent=2)
                 if os.path.exists(JOURNAL_FILE):
                     open(JOURNAL_FILE, "w").close()
                 logging.info("Database saved successfully.")
